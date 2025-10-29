@@ -10,18 +10,19 @@ from dataclasses import dataclass
 from model.encoder import ViTRegr
 from model.fsq import FSQ
 from model.decoder import ViTDecoder
+from model.iteration_methods import rk4_step
 
 
 @dataclass
 class FlexTokConfig:
-    patch_dim: int = 64  # 16 latent channels * 2x2 patches
-    n_patches: int = 196  # 14x14 patches (from 28x28 latent)
+    patch_size: int = 8
+    input_dim: int = 28**2
     d: int = 256
     cond_d: int = 128
     nh: int = 8
     n_layers: int = 6
-    n_registers: int = 2**6
-    possible_k: int = 7
+    n_registers: int = 64
+    register_subset_lengths: tuple = (1,2,4,8,16,32,64)
     fsq_n_levels: int = 5
     fsq_l: int = 8
     time_dim: int = 128
@@ -33,19 +34,26 @@ class FlexTokConfig:
         return self.n_patches + self.n_registers
     
     @property
-    def regr_k_keep(self):
-        return [2**i for i in range(self.possible_k)]
+    def patch_dim(self):
+        return self.patch_size**2
+    
+    @property
+    def n_patches(self):
+        return self.input_dim // self.patch_dim
+    
+    def __post_init__(self):
+        assert self.input_dim % self.patch_dim == 0
     
 @dataclass
 class FlexTokMnistConfig(FlexTokConfig):
-    patch_dim: int = 16          # 4x4 patches x 1 channel = 4 pixels per patch
-    n_patches: int = 49          # 7x7 patches (28/4 = 7)
+    patch_size: int = 2
+    input_dim: int = 28**2
     d: int = 128                 
     cond_d: int = 64             
     nh: int = 4
     n_layers: int = 4
-    n_registers: int = 2**5
-    possible_k: int = 6
+    n_registers: int = 32
+    register_subset_lengths: tuple =(1,2,4,8,16,32)
     fsq_n_levels: int = 5
     fsq_l: int = 8         
     time_dim: int = 64           
@@ -83,7 +91,7 @@ class FlexTok(nn.Module):
             num_classes=config.num_classes
         )
         
-        self.register_buffer('possible_k', torch.tensor(config.regr_k_keep))
+        self.register_buffer('register_subset_lengths', torch.tensor(config.register_subset_lengths))
         
         # Create block mask once during init
         self.enc_block_mask = self._create_prefix_lm_mask()
@@ -113,15 +121,14 @@ class FlexTok(nn.Module):
     def forward(self, patchified_latents, timestep):
         
         # Encode to register tokens
-        registers = self.encoder(patchified_latents, self.enc_block_mask)
-        qregisters = self.fsq(registers)  # b x n_registers x fsq_n_levels
-        deq_registers = self.fsq.dequantize(qregisters)
+        registers = self.encode(patchified_latents)
 
         # Sample random k for nested dropout
-        k = self.possible_k[torch.randint(len(self.possible_k), (1,), device=patchified_latents.device)]
+        idx = torch.randint(len(self.register_subset_lengths), (1,), device=patchified_latents.device)
+        k = self.register_subset_lengths[idx]
         # TODO: add learnable mask token for dropped tokens
         # paper: "When performing nested dropout, we replace the dropped tokens with a learnable mask token"
-        deq_registers_subset = deq_registers[:, :k, :]
+        deq_registers_subset = registers[:, :k, :]
 
         t = rearrange(timestep, "b -> b 1 1")
         noise = torch.randn_like(patchified_latents)
@@ -131,3 +138,22 @@ class FlexTok(nn.Module):
         pred_flow = self.decoder(deq_registers_subset, noised_patchified_latents, timestep)
     
         return pred_flow, noise
+    
+    @torch.no_grad
+    def reconstruct(self, x, denoising_steps, iteration_method=rk4_step):
+        registers = self.encode(x)
+
+        ts = torch.linspace(0, 1, denoising_steps).to(registers.device)
+
+        def f(y, t):
+            return self.decoder(registers, y, t)
+
+        reconstructed = torch.randn_like(x)
+        for i in range(len(ts) - 1):
+            dt = ts[i+1] - ts[i]
+            timestep = rearrange(ts[i], " -> 1")
+            pred_flow = iteration_method(f, reconstructed, timestep, dt)
+
+            reconstructed -= dt * pred_flow
+
+        return reconstructed

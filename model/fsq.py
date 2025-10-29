@@ -10,6 +10,7 @@ class FSQ(nn.Module):
         # levels = torch.tensor([8, 8, 8, 8, 8], dtype=torch.int)
         # self.register_buffer("levels", levels)
         self.L = L
+        # TODO: refactor to encoder
         self.regrs_ln = nn.LayerNorm(d_model)
         self.regrs_head = nn.Linear(d_model, n_levels, bias=False)
         
