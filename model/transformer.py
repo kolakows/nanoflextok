@@ -10,6 +10,7 @@ class MHAttention(nn.Module):
         super().__init__()
         assert d % nh == 0
         self.proj = nn.Linear(d, 3*d, bias=False)
+        self.o_proj = nn.Linear(d, d, bias=False)
         self.nh = nh
 
     def forward(self, x, block_mask=None):
@@ -24,6 +25,8 @@ class MHAttention(nn.Module):
         attn = flex_attention(q, k, v, block_mask=block_mask)
 
         attn = rearrange(attn, "b h s hd -> b s (h hd)")
+        
+        attn = self.o_proj(attn)
 
         return attn
 
