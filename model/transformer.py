@@ -14,7 +14,8 @@ class MHAttention(nn.Module):
 
     def forward(self, x, block_mask=None):
         qkv = self.proj(x)
-        q, k, v = rearrange(qkv, '... (three d) -> three ... d', three=3)
+        q, k, v = qkv.chunk(3, dim=-1)
+        # q, k, v = rearrange(qkv, '... (three d) -> three ... d', three=3)
 
         q = rearrange(q, "b s (h hd) -> b h s hd", h=self.nh)
         k = rearrange(k, "b s (h hd) -> b h s hd", h=self.nh)
@@ -61,7 +62,7 @@ class TransformerBlockAdaLNZero(nn.Module):
         self.attn = MHAttention(d, nh)
         self.mlp = MLP(d)
         self.cond_proj = nn.Sequential(
-                nn.SiLU(),
+                nn.SiLU(inplace=True),
                 nn.Linear(cond_d, 6*d, bias=True)
             )
         
