@@ -23,7 +23,7 @@ class ViTDecoder(nn.Module):
         self.time_mlp = nn.Sequential(
             self.sinu_pos_emb,
             nn.Linear(fourier_dim, cond_d),
-            nn.GELU(),
+            nn.SiLU(),
             nn.Linear(cond_d, cond_d)
         )
         # TODO: 1 step lookup vs proj up?

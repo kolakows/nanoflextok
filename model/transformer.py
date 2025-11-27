@@ -1,7 +1,5 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.attention.flex_attention import flex_attention, create_block_mask, or_masks
+from torch.nn.attention.flex_attention import flex_attention
 from einops import rearrange
 
 
@@ -35,7 +33,7 @@ class MLP(nn.Module):
         super().__init__()
         self.proj_up = nn.Linear(d, 4*d, bias=False)
         self.proj_down = nn.Linear(4*d, d, bias=False)
-        self.silu = nn.SiLU(inplace=True)
+        self.silu = nn.SiLU()
         # self.dropout = nn.Dropout(0.1)
      
     def forward(self, x):
@@ -65,7 +63,7 @@ class TransformerBlockAdaLNZero(nn.Module):
         self.attn = MHAttention(d, nh)
         self.mlp = MLP(d)
         self.cond_proj = nn.Sequential(
-                nn.SiLU(inplace=True),
+                nn.SiLU(),
                 nn.Linear(cond_d, 6*d, bias=True)
             )
         
