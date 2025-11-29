@@ -1,10 +1,6 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.attention.flex_attention import flex_attention, create_block_mask, or_masks
-from einops import rearrange, pack, unpack
+from einops import pack, unpack
 
-import random
 
 from model.transformer import TransformerBlockAdaLNZero
 from model.positional_emb import LearnedSinusoidalPosEmb
@@ -40,7 +36,7 @@ class ViTDecoder(nn.Module):
         self.proj_head = nn.Linear(d, patch_dim)
         
 
-    def forward(self, registers, noised_latent_patches, timesteps):
+    def forward(self, registers, register_mask_token, noised_latent_patches, timesteps):
         b, regr_t, fsq_d = registers.shape
         registers = self.fsq_proj_up(registers)
         registers_pos_emb = self.regr_pos_enc.weight[:regr_t,:]
@@ -50,7 +46,7 @@ class ViTDecoder(nn.Module):
         latents_pos_emb = self.latent_pos_enc.weight
         latents = latents + latents_pos_emb
 
-        x, ps = pack([registers, latents], "b * d")
+        x, ps = pack([registers, register_mask_token, latents], "b * d")
         
         t_emb = self.time_mlp(timesteps)
         # class_emb = self.class_enc(classes)
@@ -60,6 +56,6 @@ class ViTDecoder(nn.Module):
             x = block(x, conditioning)
 
         x = self.proj_head(x)
-        _, denoised_latents = unpack(x, ps, "b * d_out")
+        _, _, denoised_latents = unpack(x, ps, "b * d_out")
 
         return denoised_latents

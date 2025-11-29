@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.attention.flex_attention import flex_attention, create_block_mask, or_masks
 from einops import rearrange
 
 import math
