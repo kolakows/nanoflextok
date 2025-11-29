@@ -2,4 +2,7 @@ data
 __pycache__
 *.pt
 wandb
+wandb_logs
 todo*
+hf_token
+.env

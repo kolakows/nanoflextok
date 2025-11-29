@@ -1,0 +1,31 @@
+[project]
+name = "nanoflextok"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "einops>=0.8.1",
+    "ipykernel>=7.1.0",
+    "ipywidgets>=8.1.8",
+    "matplotlib>=3.10.7",
+    "torch>=2.9.1",
+    "torchvision>=0.24.1",
+    "tqdm>=4.67.1",
+    "wandb>=0.23.0",
+    "webdataset>=1.0.2",
+    "tokenizers>=0.22.0",
+    "transformers>=4.57.3",
+    "diffusers[torch]>=0.35.2",
+    "huggingface-hub>=0.36.0",
+    "datasets>=4.4.1",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchvision = { index = "pytorch" }
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
