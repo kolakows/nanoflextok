@@ -218,7 +218,8 @@ class FlexTok(nn.Module):
         
         registers_subset = registers[:, :k, :]
         # paper: "When performing nested dropout, we replace the dropped tokens with a learnable mask token"
-        register_mask_token = self.get_registers_mask_token(registers_subset)
+        bs, k, _ = registers.shape
+        register_mask_token = self.get_registers_mask_token(bs, k)
         
         t = rearrange(timestep, "b -> b 1 1")
         noise = torch.randn_like(patchified_latents)
@@ -232,7 +233,8 @@ class FlexTok(nn.Module):
     @torch.no_grad
     def reconstruct(self, x, denoising_steps, iteration_method=rk4_step):
         registers = self.encode(x)
-        registers_mask = self.get_registers_mask_token(registers)
+        bs, k, _ = registers.shape
+        registers_mask = self.get_registers_mask_token(bs, k)
 
         ts = torch.linspace(0, 1, denoising_steps).to(registers.device)
 
@@ -249,8 +251,7 @@ class FlexTok(nn.Module):
 
         return reconstructed
 
-    def get_registers_mask_token(self, registers):
-        bs, k, _ = registers.shape
+    def get_registers_mask_token(self, bs, k):
         mask_idx = self.registers_used_to_mask_idx[k]
         registers_mask_token = self.registers_mask_tokens.weight[mask_idx]
         return registers_mask_token.expand(bs, 1, -1)
