@@ -178,7 +178,7 @@ class FlexTok(nn.Module):
         self.register_buffer('register_subset_lengths', torch.tensor(config.register_subset_lengths))
 
         # Learnable mask tokens for dropped registers during nested dropout
-        self.registers_mask_tokens = nn.Parameter(torch.randn((len(config.register_subset_lengths), config.d)))
+        self.registers_mask_tokens = nn.Embedding(len(config.register_subset_lengths), config.d)
         self.registers_used_to_mask_idx = {
             subset_length: i for i, subset_length in enumerate(config.register_subset_lengths)
         }
@@ -252,8 +252,30 @@ class FlexTok(nn.Module):
     def get_registers_mask_token(self, registers):
         bs, k, _ = registers.shape
         mask_idx = self.registers_used_to_mask_idx[k]
-        registers_mask_token = self.registers_mask_tokens[mask_idx]
+        registers_mask_token = self.registers_mask_tokens.weight[mask_idx]
         return registers_mask_token.expand(bs, 1, -1)
     
     def parameter_count(self):
         return sum((p.numel() for p in self.parameters() if p.requires_grad))
+    
+    def get_parameter_groups(self, weight_decay):
+        decay = []
+        no_decay = []
+
+        for module_name, module in self.named_modules():
+            for param_name, param in module.named_parameters(recurse=False):
+                if not param.requires_grad:
+                    continue
+ 
+                # no weight decay on embeddings, LNs and biases
+                if (isinstance(module, nn.Embedding) or
+                    isinstance(module, nn.LayerNorm) or
+                    param.ndim < 2):
+                    no_decay.append(param)
+                else:
+                    decay.append(param)
+        
+        return [
+            {'params': decay, 'weight_decay': weight_decay},
+            {'params': no_decay, 'weight_decay': 0.0}
+        ]
