@@ -23,6 +23,8 @@ SAVE_CKPT = True
 input_h = 32
 input_w = 32
 
+out_dir = "checkpoints"
+os.makedirs(out_dir, exist_ok=True)
 if USE_C16_VAE:
     input_channels = 16
     vae_model_name = 'EPFL-VILAB/flextok_vae_c16'
@@ -62,11 +64,10 @@ assert torch.cuda.is_available() and torch.cuda.is_bf16_supported()
 dtype =  torch.bfloat16
 ctx = torch.amp.autocast(device_type=device, dtype=dtype)
 
-# HuggingFace token (set this or use environment variable)
-hf_token = os.environ.get("HF_TOKEN")
-
 config_keys = [k for k, v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str, tuple))]
 user_config = {k: globals()[k] for k in config_keys}
+
+hf_token = os.environ.get("HF_TOKEN")
 
 valid_fields = {f.name for f in fields(FlexTokCc3mConfig)}
 filtered_cfg_dict = {k: v for k, v in user_config.items() if k in valid_fields}
@@ -87,7 +88,7 @@ def vae_encode_fn(x):
 def vae_decode_fn(latents):
     return vae.decode(latents).sample
 
-def train(model, vae_encode_fn, vae_decode_fn, dataloader, lr, device='cuda'):
+def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device='cuda'):
     model = model.to(device)
     model.train()
     optimizer = AdamW(model.get_parameter_groups(weight_decay), lr=lr, betas=betas, fused=ADAM_FUSED)
@@ -120,22 +121,35 @@ def train(model, vae_encode_fn, vae_decode_fn, dataloader, lr, device='cuda'):
             pbar.set_postfix({'loss': f'{running_loss[-1]:.4f}', 'iter': step})
             wandb_run.log({"loss": loss.item(), 'iter': step})
  
-        if step % 1000 == 0:
+        if step % 5000 == 0:
             log_test_mse(model, vae_encode_fn, test_loader, val_mse_batches, cfg, wandb_run, step)
             log_reconstructed_images(model, vae_encode_fn, vae_decode_fn, test_loader, val_img_dec_samples, cfg, wandb_run, step)
 
-        if step % 20_000 == 0 and SAVE_CKPT:
-            torch.save(model.state_dict(), f"{ckpt_base_name}_{step}.pt")
+        if step % 10_000 == 0 and SAVE_CKPT:
+            checkpoint = {
+                    'model': raw_model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'model_args': filtered_cfg_dict,
+                    'step': step
+                }
+            print(f"saving checkpoint to {out_dir}")
+            torch.save(checkpoint, os.path.join(out_dir, f'{ckpt_base_name}_{step}.pt'))
+            # torch.save(model.state_dict(), f"{ckpt_base_name}_{step}.pt")
 
 
 # ============ Main ============
 if __name__ == "__main__":
     model = FlexTok(cfg)
+    raw_model = model
     if TORCH_COMPILE:
         model = torch.compile(model)
         vae_encode_fn = torch.compile(vae_encode_fn)
         vae_decode_fn = torch.compile(vae_decode_fn)
     print(f"Trainable parameter count: {model.parameter_count()}")
-    train(model, vae_encode_fn, vae_decode_fn, train_loader, lr=lr)
+    train(model, raw_model, vae_encode_fn, vae_decode_fn, train_loader, lr=lr)
     if SAVE_CKPT:
-        torch.save(model.state_dict(), f"{ckpt_base_name}_{total_train_steps}_final.pt")
+        checkpoint = {
+            'model': raw_model.state_dict(),
+            'step': total_train_steps
+        }
+        torch.save(checkpoint, os.path.join(out_dir,f"{ckpt_base_name}_{total_train_steps}_final.pt"))
