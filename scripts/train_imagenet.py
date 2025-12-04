@@ -93,6 +93,7 @@ def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device
     pbar = tqdm(dataloader, total=total_train_steps)
     for step, (lat, dino, label) in enumerate(pbar):
         lat = lat.to(device)
+        dino = dino.to(device)
         x_patches = image_to_patches(lat, cfg.patch_size)
         
         t = torch.rand(lat.shape[0], device=device)

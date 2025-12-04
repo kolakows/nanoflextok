@@ -27,7 +27,9 @@ class CachedLatentDataset(Dataset):
         self.labels = data['labels']
         
         print(f"Loaded {len(self.latents)} latents, shape: {self.latents.shape}")
-    
+        print(f"Loaded {len(self.dino_features)} dino features, shape: {self.dino_features.shape}")
+
+
     def __len__(self):
         return len(self.latents)
     

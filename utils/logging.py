@@ -12,7 +12,7 @@ def log_test_mse(model, vae_encode_fn, dataloader, sample_size, cfg, wandb_run, 
     model.eval()
     mse_acc = []
     
-    for i, (x, _) in enumerate(tqdm(dataloader, total=sample_size, desc="Validation step")):
+    for i, (x, _, _) in enumerate(tqdm(dataloader, total=sample_size, desc="Validation step")):
         if i >= sample_size:
             break
         x = x.to(cfg.device)
@@ -31,7 +31,7 @@ def log_test_mse(model, vae_encode_fn, dataloader, sample_size, cfg, wandb_run, 
 @torch.no_grad()
 def log_reconstructed_images(model, vae_encode_fn, vae_decode_fn, dataloader, sample_size, cfg, wandb_run, step):
     model.eval()
-    x, _ = next(iter(dataloader))
+    x, _, _ = next(iter(dataloader))
     x = x[:sample_size].to(cfg.device)
     
     # x_lat = vae_encode_fn(x)

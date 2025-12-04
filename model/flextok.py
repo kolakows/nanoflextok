@@ -142,6 +142,7 @@ class FlexTokCc3mConfig(FlexTokConfig):
     register_subset_lengths: tuple = (1, 2, 4, 8, 16, 32, 64)
     fsq_n_levels: int = 5
     fsq_l: int = 8
+    repa_dim: int = 1024
     time_dim: int = 128
     device: str = "cuda"
 
@@ -248,7 +249,8 @@ class FlexTok(nn.Module):
         ts = torch.linspace(0, 1, denoising_steps).to(registers.device)
 
         def f(y, t):
-            return self.decoder(registers, registers_mask, y, t)
+            pred_flow, first_layer_features = self.decoder(registers, registers_mask, y, t)
+            return pred_flow
 
         reconstructed = torch.randn_like(x)
         for i in range(len(ts) - 1):
