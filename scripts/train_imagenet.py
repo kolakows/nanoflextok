@@ -1,6 +1,7 @@
 import os
 import wandb
 import torch
+import torch.nn.functional as F
 from torch.optim import AdamW
 from tqdm import tqdm
 
@@ -13,7 +14,6 @@ from utils.logging import log_reconstructed_images, log_test_mse
 from diffusers.models import AutoencoderKL
 
 # ============ Configuration ============
-USE_C16_VAE = False
 TORCH_COMPILE = True
 ADAM_FUSED = False
 SAVE_CKPT = True
@@ -25,18 +25,13 @@ input_w = 32
 
 out_dir = "checkpoints"
 os.makedirs(out_dir, exist_ok=True)
-if USE_C16_VAE:
-    input_channels = 16
-    vae_model_name = 'EPFL-VILAB/flextok_vae_c16'
-    ckpt_base_name = "imagenet_c16"
-else:
-    input_channels = 4
-    vae_model_name = 'EPFL-VILAB/flextok_vae_c4'
-    ckpt_base_name = "imagenet_c4"
-    cache_dir = "latent_cache_c4"
+input_channels = 8
+vae_model_name = "EPFL-VILAB/flextok_vae_c8"
+ckpt_base_name = "imagenet_c8_repa"
+cache_dir = "vae_c8_dino_cache"
 patch_size = 2
-patch_dim = patch_size ** 2 * input_channels  # 16*16*3 = 768
-num_patches = (input_h // patch_size) * (input_w // patch_size)  # 14*14 = 196
+patch_dim = patch_size ** 2 * input_channels  # 32
+num_patches = (input_h // patch_size) * (input_w // patch_size)  # 16*16 = 256
 
 image_size = 256
 
@@ -45,7 +40,8 @@ cond_d: int = 128            # Increased conditioning dimension
 nh: int = 12                  # More attention heads
 n_layers: int = 12            # More layers
 n_registers: int = 256
-register_subset_lengths = (1, 2, 4, 8, 16, 32, 64, 128, 256)
+# register_subset_lengths = (1, 2, 4, 8, 16, 32, 64, 128, 256)
+register_subset_lengths = (256,)
 fsq_n_levels: int = 5
 fsq_l: int = 8
 time_dim: int = 128
@@ -95,31 +91,36 @@ def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device
 
     running_loss = []
     pbar = tqdm(dataloader, total=total_train_steps)
-    for step, (x, captions) in enumerate(pbar):
-        x = x.to(device)
+    for step, (lat, dino, label) in enumerate(pbar):
+        lat = lat.to(device)
+        x_patches = image_to_patches(lat, cfg.patch_size)
         
-        # with torch.no_grad():
-        #     latents = vae_encode_fn(x)
-        #     x = latents
-
-        x_patches = image_to_patches(x, cfg.patch_size)
-        
-        t = torch.rand(x.shape[0], device=device)
+        t = torch.rand(lat.shape[0], device=device)
         t = warp_time(t)
         
         with ctx:
-            flow, noise = model(x_patches, t)
+            flow, noise, repa_features = model(x_patches, t)
             target_flow = noise - x_patches
-            loss = ((flow - target_flow) ** 2).mean()
-            
+            rf_loss = ((flow - target_flow) ** 2).mean()
+
+            cosine_sim = F.cosine_similarity(repa_features, dino, dim=-1)
+            repa_loss = (1 - cosine_sim).mean()
+
+            loss = rf_loss + repa_loss
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
         if step % 10 == 0:
             running_loss.append(loss.item())
-            pbar.set_postfix({'loss': f'{running_loss[-1]:.4f}', 'iter': step})
-            wandb_run.log({"loss": loss.item(), 'iter': step})
+            pbar.set_postfix({'loss': f'{running_loss[-1]:.4f}', 'rf': f'{rf_loss.item():.4f}', 'repa': f'{repa_loss.item():.4f}', 'iter': step})
+            wandb_run.log({
+                "loss": loss.item(),
+                "rf_loss": rf_loss.item(),
+                "repa_loss": repa_loss.item(),
+                'iter': step
+            })
  
         if step % 5000 == 0:
             log_test_mse(model, vae_encode_fn, test_loader, val_mse_batches, cfg, wandb_run, step)
@@ -134,8 +135,6 @@ def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device
                 }
             print(f"saving checkpoint to {out_dir}")
             torch.save(checkpoint, os.path.join(out_dir, f'{ckpt_base_name}_{step}.pt'))
-            # torch.save(model.state_dict(), f"{ckpt_base_name}_{step}.pt")
-
 
 # ============ Main ============
 if __name__ == "__main__":

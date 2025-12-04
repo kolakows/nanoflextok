@@ -4,15 +4,14 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 
-import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from pathlib import Path
 
 
 class CachedLatentDataset(Dataset):
     """Dataset that loads precomputed VAE latents."""
     
-    def __init__(self, cache_dir: str, split: str = "train", augment: bool = True):
+    def __init__(self, cache_dir: str, split: str = "train"):
         cache_path = Path(cache_dir) / split / "latents.pt"
         
         if not cache_path.exists():
@@ -24,6 +23,7 @@ class CachedLatentDataset(Dataset):
         print(f"Loading cached latents from {cache_path}...")
         data = torch.load(cache_path, weights_only=True)
         self.latents = data['latents']
+        self.dino_features = data['dino_features']
         self.labels = data['labels']
         
         print(f"Loaded {len(self.latents)} latents, shape: {self.latents.shape}")
@@ -33,9 +33,10 @@ class CachedLatentDataset(Dataset):
     
     def __getitem__(self, idx):
         latent = self.latents[idx]
+        dino_feature = self.dino_features[idx]
         label = self.labels[idx]
         
-        return latent, label
+        return latent, dino_feature, label
 
 
 def get_cached_dataloaders(cache_dir, train_epochs, batch_size, num_workers):

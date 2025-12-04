@@ -174,6 +174,14 @@ class FlexTok(nn.Module):
             cond_d=config.cond_d, 
             num_classes=config.num_classes
         )
+
+        self.repa_mlp = nn.Sequential(
+            nn.Linear(config.d, config.d),
+            nn.SiLU(),
+            nn.Linear(config.d, config.d),
+            nn.SiLU(),
+            nn.Linear(config.d, config.repa_dim)
+        )
         
         self.register_buffer('register_subset_lengths', torch.tensor(config.register_subset_lengths))
 
@@ -226,9 +234,10 @@ class FlexTok(nn.Module):
         noised_patchified_latents = (1 - t) * noise + t * patchified_latents
 
         # Predict flow
-        pred_flow = self.decoder(registers_subset, register_mask_token, noised_patchified_latents, timestep)
+        pred_flow, first_layer_features = self.decoder(registers_subset, register_mask_token, noised_patchified_latents, timestep)
+        repa_features = self.repa_mlp(first_layer_features)
     
-        return pred_flow, noise
+        return pred_flow, noise, repa_features
     
     @torch.no_grad
     def reconstruct(self, x, denoising_steps, iteration_method=rk4_step):

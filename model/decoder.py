@@ -28,7 +28,7 @@ class ViTDecoder(nn.Module):
         #         nn.SiLU(),
         #         nn.Linear(64, cond_d)
         #     )
-        
+
         self.decoder = nn.ModuleList(
             [TransformerBlockAdaLNZero(d, nh, cond_d) for _ in range(n_layers)]
         )
@@ -51,10 +51,15 @@ class ViTDecoder(nn.Module):
         # class_emb = self.class_enc(classes)
         conditioning = t_emb # + class_emb
 
-        for block in self.decoder:
+        first_block = self.decoder[0]
+        x = first_block(x, conditioning)
+
+        _, _, first_layer_features = unpack(x, ps, "b * repa_dim")
+
+        for block in self.decoder[1:]:
             x = block(x, conditioning)
 
         x = self.proj_head(x)
         _, _, denoised_latents = unpack(x, ps, "b * d_out")
 
-        return denoised_latents
+        return denoised_latents, first_layer_features
