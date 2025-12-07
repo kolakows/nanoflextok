@@ -49,6 +49,7 @@ device: str = "cuda"
 lr = 3e-4
 betas = (0.9, 0.95)
 weight_decay = 0.01
+grad_clip = 1.0
 
 train_epochs = 50
 val_img_dec_samples = 8
@@ -111,6 +112,7 @@ def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device
 
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
         optimizer.step()
         
         if step % 10 == 0:
