@@ -48,9 +48,8 @@ def log_reconstructed_images(model, vae_encode_fn, vae_decode_fn, dataloader, sa
     # Denormalize for visualization
     mean = torch.tensor([0.5, 0.5, 0.5]).view(1, 3, 1, 1).to(cfg.device)
     std = torch.tensor([0.5, 0.5, 0.5]).view(1, 3, 1, 1).to(cfg.device)
-    comparison = comparison * std + mean
-    comparison = comparison.clamp(0, 1)
-    
+    comparison = comparison.clamp(-1, 1) * std + mean
+
     # Create grid
     grid = rearrange(comparison, "(r c) ch h w -> (r h) (c w) ch", r=1, c=sample_size)
     grid = (grid.cpu().numpy() * 255).astype(np.uint8)
