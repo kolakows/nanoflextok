@@ -15,7 +15,7 @@ from flux2_tiny_autoencoder import Flux2TinyAutoEncoder
 # ============ Configuration ============
 TORCH_COMPILE = True
 ADAM_FUSED = False
-SAVE_CKPT = False
+SAVE_CKPT = True
 
 # ============ Hyperparameters ============
 # vae latents - using FLUX.2-Tiny-AutoEncoder from precompute_latents_anime
@@ -26,7 +26,7 @@ vae_model_name = "fal/FLUX.2-Tiny-AutoEncoder"
 ckpt_base_name = "gochiusa_flux2ae"
 cache_dir = "ae_dino_gochiusa_cache"
 
-out_dir = "checkpoints"
+out_dir = "checkpoints_better_init_12.12"
 os.makedirs(out_dir, exist_ok=True)
 patch_size = 2
 patch_dim = patch_size ** 2 * input_channels 
@@ -150,6 +150,7 @@ if __name__ == "__main__":
     if SAVE_CKPT:
         checkpoint = {
             'model': raw_model.state_dict(),
+            'model_args': filtered_cfg_dict,
             'step': total_train_steps
         }
         torch.save(checkpoint, os.path.join(out_dir,f"{ckpt_base_name}_{total_train_steps}_final.pt"))

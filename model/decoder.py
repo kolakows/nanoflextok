@@ -29,7 +29,7 @@ class ViTDecoder(nn.Module):
         #         nn.Linear(64, cond_d)
         #     )
 
-        self.decoder = nn.ModuleList(
+        self.blocks = nn.ModuleList(
             [TransformerBlockAdaLNZero(d, nh, cond_d) for _ in range(n_layers)]
         )
         self.proj_head = nn.Linear(d, patch_dim)
@@ -51,12 +51,12 @@ class ViTDecoder(nn.Module):
         # class_emb = self.class_enc(classes)
         conditioning = t_emb # + class_emb
 
-        first_block = self.decoder[0]
+        first_block = self.blocks[0]
         x = first_block(x, conditioning)
 
         _, _, first_layer_features = unpack(x, ps, "b * repa_dim")
 
-        for block in self.decoder[1:]:
+        for block in self.blocks[1:]:
             x = block(x, conditioning)
 
         x = self.proj_head(x)
