@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn.attention.flex_attention import create_block_mask
 from einops import rearrange
 
+import math
 from dataclasses import dataclass
 
 from model.encoder import ViTRegr
@@ -192,6 +193,19 @@ class FlexTok(nn.Module):
             subset_length: i for i, subset_length in enumerate(config.register_subset_lengths)
         }
 
+
+        # init all weights
+        self.apply(self._init_weights)
+        # AdaLN specific initialization
+        for block in self.decoder.blocks:
+            block._init_weights()
+        # Scaled init of residual projections, probably redundant for AdaLNZero decoder
+        # info: https://github.com/karpathy/nanoGPT/blob/master/model.py#L142C9-L142C81
+        for pn, p in self.named_parameters():
+            if pn.endswith('o_proj.weight'):
+                torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layers))
+        
+
         # Create block mask once during init
         self.enc_block_mask = self._create_prefix_lm_mask()
 
@@ -291,3 +305,18 @@ class FlexTok(nn.Module):
             {'params': decay, 'weight_decay': weight_decay},
             {'params': no_decay, 'weight_decay': 0.0}
         ]
+
+    def _init_weights(self, module):
+
+        if isinstance(module, nn.Linear):
+            # I guess here's important that we do init independent of fan_in and fan_out as we're chunking some MLP outputs later
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        elif isinstance(module, nn.LayerNorm):
+            if module.weight is not None:
+                torch.nn.init.constant_(module.weight, 0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)

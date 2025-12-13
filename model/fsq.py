@@ -12,7 +12,7 @@ class FSQ(nn.Module):
         self.L = L
         # TODO: refactor to encoder
         self.regrs_ln = nn.LayerNorm(d_model)
-        self.regrs_head = nn.Linear(d_model, n_levels, bias=False)
+        self.regrs_head = nn.Linear(d_model, n_levels)
         
     def _round_ste(self, x):
         return x + (torch.round(x) - x).detach()

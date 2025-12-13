@@ -32,14 +32,14 @@ class MLP(nn.Module):
     def __init__(self, d):
         super().__init__()
         self.proj_up = nn.Linear(d, 4*d, bias=False)
-        self.proj_down = nn.Linear(4*d, d, bias=False)
+        self.o_proj = nn.Linear(4*d, d, bias=False)
         self.silu = nn.SiLU()
         # self.dropout = nn.Dropout(0.1)
      
     def forward(self, x):
         x = self.proj_up(x)
         x = self.silu(x)
-        x = self.proj_down(x)
+        x = self.o_proj(x)
         return x
 
 class TransformerBlock(nn.Module):
@@ -66,12 +66,7 @@ class TransformerBlockAdaLNZero(nn.Module):
                 nn.SiLU(),
                 nn.Linear(cond_d, 6*d, bias=True)
             )
-        
-        # AdaLNZero zero part, initially forward(x) = x
-        nn.init.zeros_(self.cond_proj[-1].weight)
-        nn.init.zeros_(self.cond_proj[-1].bias)
 
-        
     def forward(self, x, conditioning):
         projected_cond = self.cond_proj(conditioning)
         # chunking and adding 1 sequence dim for broadcasting
@@ -90,3 +85,8 @@ class TransformerBlockAdaLNZero(nn.Module):
         x = x + x_mlp
 
         return x
+    
+    def _init_weights(self):
+        # AdaLNZero zero part, initially forward(x) = x
+        nn.init.zeros_(self.cond_proj[-1].weight)
+        nn.init.zeros_(self.cond_proj[-1].bias)
