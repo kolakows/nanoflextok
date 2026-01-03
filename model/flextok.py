@@ -228,8 +228,8 @@ class FlexTok(nn.Module):
     def encode(self, patchified_latents):
         registers = self.encoder(patchified_latents, self.enc_block_mask)
         qregisters = self.fsq(registers)  # b x n_registers x fsq_n_levels
-        deq_registers = self.fsq.dequantize(qregisters)
-        return deq_registers
+        qregisters_scaled = self.fsq.scale(qregisters)
+        return qregisters_scaled
 
     def forward(self, patchified_latents, timestep):
         # Encode to register tokens
@@ -252,7 +252,7 @@ class FlexTok(nn.Module):
         pred_flow, first_layer_features = self.decoder(registers_subset, register_mask_token, noised_patchified_latents, timestep)
         repa_features = self.repa_mlp(first_layer_features)
     
-        return pred_flow, noise, repa_features
+        return pred_flow, noise, repa_features, registers
     
     @torch.no_grad
     def reconstruct(self, x, denoising_steps, iteration_method=rk4_step):

@@ -101,7 +101,7 @@ def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device
         t = warp_time(t)
         
         with ctx:
-            flow, noise, repa_features = model(x_patches, t)
+            flow, noise, repa_features, registers = model(x_patches, t)
             target_flow = noise - x_patches
             rf_loss = ((flow - target_flow) ** 2).mean()
 
