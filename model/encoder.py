@@ -9,6 +9,7 @@ class ViTRegr(nn.Module):
 
     def __init__(self, patch_dim, max_patches_len, d, nh, n_layers, n_registers, rezero):
         super().__init__()
+        self.patch_ln = nn.LayerNorm(patch_dim)
         self.patch_proj = nn.Linear(patch_dim, d, bias=False)
         # TODO: rotary embs? rotary for decoding FSQ, abs for encoding VAE patches?
         self.wpe = nn.Embedding(max_patches_len + n_registers, d)
@@ -22,7 +23,8 @@ class ViTRegr(nn.Module):
 
     def forward(self, x, block_mask=None):
         b, t, patch_dim = x.shape
-        # TODO: pre and after patch LN, DPN https://arxiv.org/abs/2302.01327
+        # ln ensures that tokens after packing are of similar scale at init
+        x = self.patch_ln(x)
         x = self.patch_proj(x) # shape (b, t, d)
         registers = repeat(self.registers.weight, "n d -> b n d", b=b)
 

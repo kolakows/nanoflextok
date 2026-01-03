@@ -12,6 +12,7 @@ class ViTDecoder(nn.Module):
         self.fsq_proj_up = nn.Linear(fsq_n_levels, d, bias=False)
         self.regr_pos_enc = nn.Embedding(n_registers, d)
         self.latent_pos_enc = nn.Embedding(max_patches_len, d)
+        self.patch_ln = nn.LayerNorm(patch_dim)
         self.patch_proj = nn.Linear(patch_dim, d, bias=False)
         self.sinu_pos_emb = LearnedSinusoidalPosEmb(time_dim)
         fourier_dim = time_dim + 1
@@ -41,7 +42,8 @@ class ViTDecoder(nn.Module):
         registers_pos_emb = self.regr_pos_enc.weight[:regr_t,:]
         registers = registers + registers_pos_emb
 
-        latents = self.patch_proj(noised_latent_patches)
+        latents = self.patch_ln(noised_latent_patches)
+        latents = self.patch_proj(latents)
         latents_pos_emb = self.latent_pos_enc.weight
         latents = latents + latents_pos_emb
 
