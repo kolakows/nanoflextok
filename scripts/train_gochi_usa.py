@@ -8,8 +8,7 @@ from dataclasses import fields
 from model.flextok import FlexTokCc3mConfig, FlexTok
 from utils.utils import warp_time, image_to_patches
 from utils.gochiusa import get_cached_gochiusa_dataloaders
-from utils.logging import log_reconstructed_images, log_test_mse
-
+from utils.logging import log_reconstructed_images, log_test_mse, fsq_codebook_usage_stats
 from flux2_tiny_autoencoder import Flux2TinyAutoEncoder
 
 # ============ Configuration ============
@@ -90,6 +89,7 @@ def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device
     model.train()
     optimizer = AdamW(model.get_parameter_groups(weight_decay), lr=lr, betas=betas, fused=ADAM_FUSED)
 
+    registers_log = []
     running_loss = []
     pbar = tqdm(dataloader, total=total_train_steps)
     for step, (latents, _, label) in enumerate(pbar):
@@ -116,10 +116,16 @@ def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
         optimizer.step()
         
+        registers_log.append(registers.detach())
+
         if step % 10 == 0:
             running_loss.append(loss.item())
-            pbar.set_postfix({'loss': f'{running_loss[-1]:.4f}', 'iter': step})
-            wandb_run.log({"loss": loss.item(), 'iter': step})
+            pbar.set_postfix({'loss': f'{running_loss[-1]:.4f}', 'iter': step, "lr": lr})
+
+            fsq_stats = fsq_codebook_usage_stats(registers_log, cfg)
+            registers_log = []
+
+            wandb_run.log({"loss": loss.item(), 'iter': step, "lr": lr} | fsq_stats)
  
         if step % 1000 == 0:
             log_test_mse(model, vae_encode_fn, test_loader, val_mse_batches, cfg, wandb_run, step)

@@ -6,6 +6,33 @@ from utils.utils import image_to_patches, patches_to_image
 
 import wandb
 
+@torch.no_grad()
+def fsq_codebook_usage_stats(registers_log, cfg):
+
+    register_codes = torch.cat(registers_log).view(-1, cfg.fsq_n_levels)
+    quantized_codes = register_codes.detach().cpu()
+
+    total_codes_len, levels = quantized_codes.shape
+    unique_codes = torch.unique(quantized_codes, dim=0)
+    unique_codes_len, _ = unique_codes.shape
+
+    values, counts = torch.unique(quantized_codes, return_counts=True)
+    values, counts = torch.round(values.float(), decimals=2).tolist(), counts.float().tolist()
+    values_distrib = {v:c for v,c in zip(values, counts)}
+
+    # table = wandb.Table(data=[[k, v] for k, v in values_distrib.items()], 
+    #                 columns=["code_value", "count"])
+    # code_values_plot = wandb.plot.bar(table, "code_value", "count", title="Code values Distribution")
+
+    desc_distrib = {f"codes_dist/code_val_{v: .2f}": c for v, c in values_distrib.items()}
+
+    return {
+        "total_codes_len": total_codes_len,
+        "unique_codes_len": unique_codes_len,
+        "unique_percentage": unique_codes_len/total_codes_len,
+        # "codes_dist/code_val_{k}": code_values_plot,
+    } | desc_distrib
+
 
 @torch.no_grad()
 def log_test_mse(model, vae_encode_fn, dataloader, sample_size, cfg, wandb_run, step):
