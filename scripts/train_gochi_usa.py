@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from dataclasses import fields
 from model.flextok import FlexTokCc3mConfig, FlexTok
-from utils.utils import warp_time, image_to_patches
+from utils.utils import warp_time, image_to_patches, get_lr_fn
 from utils.gochiusa import get_cached_gochiusa_dataloaders
 from utils.logging import log_reconstructed_images, log_test_mse, fsq_codebook_usage_stats
 from flux2_tiny_autoencoder import Flux2TinyAutoEncoder
@@ -44,6 +44,14 @@ fsq_l: int = 8
 time_dim: int = 128
 device: str = "cuda"
 lr = 3e-4
+if LR_DECAY:
+    min_lr = 3e-5
+    lr_warmup_iters = 1000
+    lr_decay_iters = 83750
+    get_lr = get_lr_fn(lr, min_lr, lr_decay_iters, lr_warmup_iters)
+else:
+    def get_lr(step):
+        return lr
 betas = (0.9, 0.95)
 weight_decay = 0.01
 grad_clip = 1.0
@@ -93,6 +101,12 @@ def train(model, raw_model, vae_encode_fn, vae_decode_fn, dataloader, lr, device
     running_loss = []
     pbar = tqdm(dataloader, total=total_train_steps)
     for step, (latents, _, label) in enumerate(pbar):
+
+        # set learning rate
+        lr = get_lr(step)
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+
         latents = latents.to(device)
 
         x_patches = image_to_patches(latents, cfg.patch_size)

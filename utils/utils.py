@@ -1,4 +1,4 @@
-
+import math
 from einops import rearrange
 
 
@@ -26,3 +26,20 @@ def image_to_patches_mnist(x, patch_size):
 def patches_to_image_mnist(x_hat_patches, patch_size, input_h):
     x_hat = rearrange(x_hat_patches, "b (h w) (p1 p2) -> b (h p1) (w p2)", p1=patch_size, p2=patch_size, h=input_h//patch_size)
     return x_hat
+
+
+def get_lr_fn(learning_rate, min_lr, lr_decay_iters, warmup_iters, ):
+    # src: https://github.com/karpathy/nanoGPT/blob/master/train.py#L231
+    def get_lr(it):
+        # 1) linear warmup for warmup_iters steps
+        if it < warmup_iters:
+            return learning_rate * (it + 1) / (warmup_iters + 1)
+        # 2) if it > lr_decay_iters, return min learning rate
+        if it > lr_decay_iters:
+            return min_lr
+        # 3) in between, use cosine decay down to min learning rate
+        decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
+        assert 0 <= decay_ratio <= 1
+        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
+        return min_lr + coeff * (learning_rate - min_lr)
+    return get_lr
