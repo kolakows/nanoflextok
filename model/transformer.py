@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from torch.nn.attention.flex_attention import flex_attention
 from einops import rearrange
@@ -53,6 +54,21 @@ class TransformerBlock(nn.Module):
     def forward(self, x, block_mask=None):
         x = x + self.attn(self.ln_1(x), block_mask)
         x = x + self.mlp(self.ln_2(x))
+        return x
+    
+class ReZeroTransformerBlock(nn.Module):
+    def __init__(self, d, nh):
+        super().__init__()
+        self.alpha_1 = nn.Parameter(torch.zeros(1))
+        self.alpha_2 = nn.Parameter(torch.zeros(1))
+        self.ln_1 = nn.LayerNorm(d)
+        self.ln_2 = nn.LayerNorm(d)
+        self.attn = MHAttention(d, nh)
+        self.mlp = MLP(d)
+
+    def forward(self, x, block_mask=None):
+        x = x + self.alpha_1 * self.attn(self.ln_1(x), block_mask)
+        x = x + self.alpha_2 * self.mlp(self.ln_2(x))
         return x
 
 class TransformerBlockAdaLNZero(nn.Module):

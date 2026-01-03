@@ -76,6 +76,7 @@ class FlexTokConfig:
     time_dim: int = 128
     num_classes: int = 1001
     device: str = "cuda"
+    rezero_encoder: bool = True
     
     @property
     def input_dim(self):
@@ -159,7 +160,8 @@ class FlexTok(nn.Module):
             config.d, 
             config.nh, 
             config.n_layers, 
-            config.n_registers
+            config.n_registers,
+            config.rezero_encoder
         )
         
         self.fsq = FSQ(config.fsq_l, config.fsq_n_levels, config.d)

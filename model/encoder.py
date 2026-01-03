@@ -2,18 +2,19 @@ import torch.nn as nn
 from einops import repeat, pack, unpack
 
 
-from model.transformer import TransformerBlock
+from model.transformer import ReZeroTransformerBlock, TransformerBlock
 
 
 class ViTRegr(nn.Module):
 
-    def __init__(self, patch_dim, max_patches_len, d, nh, n_layers, n_registers):
+    def __init__(self, patch_dim, max_patches_len, d, nh, n_layers, n_registers, rezero):
         super().__init__()
         self.patch_proj = nn.Linear(patch_dim, d, bias=False)
         # TODO: rotary embs? rotary for decoding FSQ, abs for encoding VAE patches?
         self.wpe = nn.Embedding(max_patches_len + n_registers, d)
+        block_cls = ReZeroTransformerBlock if rezero else TransformerBlock
         self.blocks = nn.ModuleList(
-            [TransformerBlock(d, nh) for _ in range(n_layers)]
+            [block_cls(d, nh) for _ in range(n_layers)]
         )
         self.registers = nn.Embedding(n_registers, d)
         self.n_registers = n_registers
