@@ -4,17 +4,24 @@ import torch
 from torch.optim import AdamW
 from tqdm import tqdm
 
+import random
 from dataclasses import fields
+
 from model.flextok import FlexTokCc3mConfig, FlexTok
 from utils.utils import warp_time, image_to_patches, get_lr_fn
 from utils.gochiusa import get_cached_gochiusa_dataloaders
 from utils.logging import log_reconstructed_images, log_test_mse, fsq_codebook_usage_stats
 from flux2_tiny_autoencoder import Flux2TinyAutoEncoder
 
+torch.manual_seed(42)
+random.seed(42)
+
 # ============ Configuration ============
 TORCH_COMPILE = True
 ADAM_FUSED = False
 SAVE_CKPT = True
+LR_DECAY = True
+wandb_mode = "online"
 
 # ============ Hyperparameters ============
 # vae latents - using FLUX.2-Tiny-AutoEncoder from precompute_latents_anime
@@ -75,7 +82,7 @@ valid_fields = {f.name for f in fields(FlexTokCc3mConfig)}
 filtered_cfg_dict = {k: v for k, v in user_config.items() if k in valid_fields}
 cfg = FlexTokCc3mConfig(**filtered_cfg_dict)
 
-wandb_run = wandb.init(project="nanoflextok-gochiusa", config=user_config, dir='wandb_logs')
+wandb_run = wandb.init(project="nanoflextok-gochiusa", config=user_config, dir='wandb_logs', mode=wandb_mode)
 
 train_loader, test_loader, total_train_steps = get_cached_gochiusa_dataloaders(cache_dir, train_epochs=train_epochs, batch_size=batch_size, num_workers=dataloader_num_workers)
 print(f"Total train steps: {total_train_steps}")

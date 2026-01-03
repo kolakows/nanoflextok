@@ -9,7 +9,7 @@ class ViTDecoder(nn.Module):
 
     def __init__(self, patch_dim, max_patches_len, fsq_n_levels, time_dim, d, nh, n_layers, n_registers, cond_d, num_classes):
         super().__init__()
-        self.fsq_proj_up = nn.Linear(fsq_n_levels, d, bias=False)
+        self.fsq_proj_up = nn.Linear(fsq_n_levels, d)
         self.regr_pos_enc = nn.Embedding(n_registers, d)
         self.latent_pos_enc = nn.Embedding(max_patches_len, d)
         self.patch_ln = nn.LayerNorm(patch_dim)
